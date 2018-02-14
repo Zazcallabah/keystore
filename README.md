@@ -1,4 +1,4 @@
-# keystore
+# Keystore
 Powershell scripts for encrypting and decrypting data using an X.509 certificate.
 
 ## background
@@ -34,7 +34,6 @@ To convert to and from base-64 encoding:
     $base64 = [System.Convert]::ToBase64String($bytes)
     $bytes = [System.Convert]::FromBase64String($base64)
 
-
 To get a sha1 hash of a byte array:
 
     (new-object System.Security.Cryptography.SHA1Managed).ComputeHash($bytes)
@@ -60,9 +59,21 @@ Encrypt a byte array using a x509 cert:
 Decrypt a byte array using a x509 cert:
 
     $cms = New-Object Security.Cryptography.Pkcs.EnvelopedCms
-	  $cms.Decode($encrypted)
+    $cms.Decode($encrypted)
     $cms.Decrypt($cert)
     $bytes = $cms.ContentInfo.Content
+
+Use makecert.exe to create a new x509 cert in the current user cert store:
+
+    .\makecert.exe -r -sk keystore -sky Exchange -n "CN=$name" -ss My
+
+### file format
+
+The keystore files consist of three lines of data.
+The first line is the thumbprint of the cert used to encrypt the data.
+The second line is a type specifier, usually one of string, bin, or json.
+The third line is the encrypted data, in base64 encoded form.
+
 
 ## further reading
 
