@@ -70,10 +70,26 @@ Use makecert.exe to create a new x509 cert in the current user cert store:
 ### file format
 
 The keystore files consist of three lines of data.
-The first line is the thumbprint of the cert used to encrypt the data.
-The second line is a type specifier, usually one of string, bin, or json.
-The third line is the encrypted data, in base64 encoded form.
 
+* The first line is the thumbprint of the cert used to encrypt the data.
+* The second line is a type specifier, usually one of string, bin, or json.
+* The third line is the encrypted data, in base64 encoded form.
+
+### file names and locations
+
+Keystore location should default to a folder named `.keystore` in the user folder.
+
+    $location = Join-Path $env:USERPROFILE ".keystore"
+
+A keystore file name is the SHA1 hash of the key name as a hexadecimal string without a "0x" prefix.
+
+A keystore certificate can be any X.509 certificate that can encrypt and decrypt data, but defaults to a certificate with a common name `keystore@user`.
+
+    $commonName = "keystore@$($env:USERNAME)"
+
+If no certificate is given when setting keystore data, a certificate with this name will be created and placed in the current user cert store.
+
+Since the keystore file contains the thumbprint of the cert that encrypted it, the entire cert store will be searched for a cert with that thumbprint to use for decryption.
 
 ## further reading
 
