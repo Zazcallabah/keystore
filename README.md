@@ -94,3 +94,7 @@ Since the keystore file contains the thumbprint of the cert that encrypted it, t
 ## further reading
 
 * https://stackoverflow.com/questions/31002186/encrypt-de-crypt-using-envelopedcms-throws-baddata-exception
+
+## License
+
+* https://opensource.org/licenses/MIT
