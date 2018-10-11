@@ -5,8 +5,7 @@ Powershell scripts for encrypting and decrypting data using an X.509 certificate
 
 I finally got tired of rewriting the same powershell encryption functions over and over again, so from now on I'll just save these here so I can easily find them the next time I need them. The name 'keystore' is a reference to the encryption script module we wrote at my first workplace, which inspired me to write these scripts in the first place.
 
-## todo
-everything.
+## details
 
 The idea is to have a designated "keystore", a folder probably in %appdata% or possibly in the user folder. In that folder encrypted data is stored. Each piece of encrypted data is called a "key". Each key has a label that can be used to get and set its value.
 
@@ -23,25 +22,6 @@ to later retrieve it.
 The data is called key primarily because of nostalgia reasons, and it is also because of nostalgia that the encrypted files' names are the SHA1 hash of the key label.
 
 ### code snippets
-
-To get an UTF8 string from a byte array and vice verse:
-
-    $str = [System.Text.Encoding]::UTF8.GetString($bytes)
-    $bytes = [System.Text.Encoding]::UTF8.GetBytes($str)
-
-To convert to and from base-64 encoding:
-
-    $base64 = [System.Convert]::ToBase64String($bytes)
-    $bytes = [System.Convert]::FromBase64String($base64)
-
-To get a sha1 hash of a byte array:
-
-    (new-object System.Security.Cryptography.SHA1Managed).ComputeHash($bytes)
-
-Byte array as hexadecimal string:
-
-    $s = new-object System.Text.StringBuilder
-    foreach($b in $bytes){ $s.Append($b.ToString("X2")) }
 
 Get a x509 cert from the user cert store:
 
