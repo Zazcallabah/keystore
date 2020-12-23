@@ -68,7 +68,7 @@ function Get-AvailableCertificates {
 	ls -Recurse "Cert:\CurrentUser\My"
 }
 
-function Get-Certificate {
+function Get-Cert {
 	param(
 		[Parameter(mandatory=$true,parametersetname="Subject")]
 		$subject,
@@ -79,9 +79,9 @@ function Get-Certificate {
 }
 
 function Get-MakeCertPath {
-	if( Get-Command makecert -ErrorAction SilentlyContinue ) {
-		return "makecert"
-	}
+#	if( Get-Command makecert -ErrorAction SilentlyContinue ) {
+#		return "makecert"
+#	}
 	if(Test-Path "${env:ProgramFiles(x86)}\Microsoft SDKs\Windows\") {
 		$makeCertPath = ls "${env:ProgramFiles(x86)}\Microsoft SDKs\Windows\*\bin\makecert.exe" | select -ExpandProperty Fullname -last 1
 	}
@@ -92,19 +92,19 @@ function Get-MakeCertPath {
 }
 
 function Get-DefaultCertificate {
-	return Get-Certificate -Subject "CN=keystore@$($env:username)"
+	return Get-Cert -Subject "CN=keystore@$($env:username)"
 }
 
 function Make-KeystoreCertificate {
 	param($commonName="keystore@$($env:UserName)")
 	[System.Reflection.Assembly]::LoadWithPartialName("System.Security") | out-null
 	$subject = "CN=$commonName"
-	$cert = Get-Certificate -subject $subject
+	$cert = Get-Cert -subject $subject
 	if( $cert -eq $null ) {
 		$makecert = Get-MakeCertPath
 		$certresult = & "$makecert" -r -sk keystore -sky Exchange -n $subject -ss My
 		Write-Host "Created certificate with subject $subject."
-		$cert = Get-Certificate -subject $subject
+		$cert = Get-Cert -subject $subject
 	}
 	Write-Host "Using certificate with subject $($cert.Subject) thumbprint $($cert.Thumbprint)"
 	$cert
@@ -141,7 +141,7 @@ function Encrypt {
 }
 
 function Get-KeystoreData {
-	param( 
+	param(
 		[parameter(mandatory=$true)]
 		[string] $keyName
 	)
@@ -150,7 +150,7 @@ function Get-KeystoreData {
 	$keyFile = Get-KeyFilePath $keyName
 	if( Test-Path -PathType Leaf $keyFile ) {
 		$keyData = gc -Encoding Utf8 -Path $keyFile
-		$cert = Get-Certificate -thumbprint $keyData[0]
+		$cert = Get-Cert -thumbprint $keyData[0]
 		if(!$cert) {
 			throw ("Cannot find the requested certificate: {0}" -f $keyData[0])
 		}
@@ -167,12 +167,13 @@ function Get-KeystoreData {
 function Set-KeystoreData {
 	param(
 		[parameter(mandatory=$true)]
-		[string] $keyName, 
+		[string] $keyName,
 		[parameter(mandatory=$true)]
 		$data,
 		$cert
 	)
-	
+	[System.Reflection.Assembly]::LoadWithPartialName("System.Security") | out-null
+
 	if( $cert -eq $null ) {
 		$cert = Get-DefaultCertificate
 	}
@@ -190,7 +191,7 @@ function Set-KeystoreData {
 	}
 	if( $cert.GetType().Name -eq "String" ) {
 		$subject = $cert
-		$cert = Get-Certificate -subject $subject
+		$cert = Get-Cert -subject $subject
 		if( $cert -eq $null ) {
 			throw "no cert found with subject $subject"
 		}
@@ -232,7 +233,7 @@ function Get-KeystoreCredential {
 function Set-KeystoreCredential {
 	param(
 		[parameter(mandatory=$true,position=0)]
-		[string] $keyName, 
+		[string] $keyName,
 		[parameter(mandatory=$true,position=1,parametersetname="UsernamePassword")]
 		[string] $username,
 		[parameter(mandatory=$true,position=2,parametersetname="UsernamePassword")]
