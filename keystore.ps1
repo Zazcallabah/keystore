@@ -210,7 +210,7 @@ function Set-KeystoreData {
 	$byteData = $stringData | GetBytes
 	$encrypted = Encrypt $byteData $cert | ToBase64
 	$keydata = @( $cert.Thumbprint, $type, $encrypted )
-	sc -Encoding Utf8 -Path $keyfile -Value $keydata
+	set-content -Encoding Utf8 -Path $keyfile -Value $keydata
 	$retrievedData = Get-KeystoreData -keyName $keyName
 	if( $retrievedData -eq $null ) {
 		throw "Failed to encrypt data with keyname $keyname"
