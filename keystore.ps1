@@ -1,3 +1,5 @@
+# This file is sourced from github.com/Zazcallabah/keystore
+
 filter GetBytes {
 	[System.Text.Encoding]::UTF8.GetBytes( $_ )
 }
@@ -210,7 +212,7 @@ function Set-KeystoreData {
 	$byteData = $stringData | GetBytes
 	$encrypted = Encrypt $byteData $cert | ToBase64
 	$keydata = @( $cert.Thumbprint, $type, $encrypted )
-	set-content -Encoding Utf8 -Path $keyfile -Value $keydata
+	Set-Content -Encoding Utf8 -Path $keyfile -Value $keydata
 	$retrievedData = Get-KeystoreData -keyName $keyName
 	if( $retrievedData -eq $null ) {
 		throw "Failed to encrypt data with keyname $keyname"
