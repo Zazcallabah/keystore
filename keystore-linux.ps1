@@ -1,97 +1,125 @@
 # This file is sourced from github.com/Zazcallabah/keystore
 
-filter GetBytes {
+filter GetBytes
+{
 	[System.Text.Encoding]::UTF8.GetBytes( $_ )
 }
 
-filter GetString {
+filter GetString
+{
 	param([Parameter(ValueFromPipeline)][byte]$b)
-	begin {
+	begin
+	{
 		$array = @()
 	}
-	process {
+	process
+	{
 		$array += $b
 	}
-	end {
+	end
+	{
 		return [System.Text.Encoding]::UTF8.GetString( $array )
 	}
 }
 
-filter ToBase64 {
+filter ToBase64
+{
 	param([Parameter(ValueFromPipeline)][byte]$b)
-	begin {
+	begin
+	{
 		$array = @()
 	}
-	process {
+	process
+	{
 		$array += $b
 	}
-	end {
+	end
+	{
 		return [System.Convert]::ToBase64String( $array )
 	}
 }
 
-filter FromBase64 {
+filter FromBase64
+{
 	[System.Convert]::FromBase64String( $_ )
 }
 
-filter ToHex {
+filter ToHex
+{
 	param([Parameter(ValueFromPipeline)][byte]$b)
-	begin {
+	begin
+	{
 		$str = new-object System.Text.StringBuilder
 	}
-	process {
+	process
+	{
 		$r = $str.Append($b.ToString( "X2" ))
 	}
-	end {
+	end
+	{
 		$str.ToString()
 	}
 }
 
-filter SHA1 {
+filter SHA1
+{
 	$sha1 = (new-object System.Security.Cryptography.SHA1Managed).ComputeHash( ($_ | GetBytes) )
 	return $sha1 | ToHex
 }
 
-function Get-LocalKeyStore {
+function Get-LocalKeyStore
+{
 	$localStore = join-path "~" ".keystore"
-	if( !(test-path $localStore ) ) {
+	if( !(test-path $localStore ) )
+	{
 		mkdir $localStore | out-null
 	}
 	$localStore
 }
 
-function Get-KeyFilePath {
+function Get-KeyFilePath
+{
 	param($keyName)
 	Join-Path (Get-LocalKeyStore) ($keyName | SHA1)
 }
 
-function Get-Cert {
+function Get-Cert
+{
 	param(
 		$name,
 		$hash
 	)
-	if( $name -ne $null -and $name -ne ""){
+	if( $name -ne $null -and $name -ne "")
+	{
 		$file = "~/.ssh/$name"
-		if( (test-path -pathtype Leaf $file) ){
+		if( (test-path -pathtype Leaf $file) )
+		{
 			# todo verify correctnes of file format?
 			# todo what about public vs private?
 			return $file
-		} else {
+		}
+		else
+		{
 			throw "invalid key name $name"
 		}
 	}
-	if( $hash -ne $null ){
+	if( $hash -ne $null )
+	{
 		# its almost always going to be the default cert anyway, so try with that first
-		if((test-path "~/.ssh/keystore.pem")){
+		if((test-path "~/.ssh/keystore.pem"))
+		{
 			$thumb = get-content -encoding utf8 -raw "~/.ssh/keystore.pem" | SHA1
-			if($thumb -eq $hash){
+			if($thumb -eq $hash)
+			{
 				return "~/.ssh/keystore.pem"
 			}
 		}
-		$allcerts = get-childitem "~/.ssh" -File 
-		foreach($certfile in $allcerts){
+		$allcerts = get-childitem "~/.ssh" -File
+		foreach($certfile in $allcerts)
+		{
 			$thumb = get-content -encoding utf8 -raw $certfile.fullname | SHA1
-			if($thumb -eq $hash){
+			if($thumb -eq $hash)
+			{
 				return $certfile.FullName
 			}
 		}
@@ -100,25 +128,30 @@ function Get-Cert {
 	throw "invalid input parameters to get-cert"
 }
 
-function Get-DefaultCertificate {
+function Get-DefaultCertificate
+{
 	return Get-Cert -name "keystore.pem"
 }
 
 
-function Delete-KeystoreData {
+function Delete-KeystoreData
+{
 	param( $keyName )
 	$keyFile = Get-KeyFilePath $keyName
-	if( Test-Path -PathType Leaf $keyFile ) {
+	if( Test-Path -PathType Leaf $keyFile )
+	{
 		remove-item $keyFile
 	}
 }
 
-function Delete-KeystoreCredential {
+function Delete-KeystoreCredential
+{
 	param( $keyName )
 	Delete-KeystoreData $keyname
 }
 
-function Decrypt {
+function Decrypt
+{
 	param( $keyDataBase64, $privateKey )
 
 	$tmpfile = "$PSScriptRoot/$([System.IO.Path]::GetRandomFileName())"
@@ -130,7 +163,8 @@ function Decrypt {
 	return $result
 }
 
-function Encrypt {
+function Encrypt
+{
 	param( [string]$data, $privateKey )
 	$tmpfile = "$PSScriptRoot/$([System.IO.Path]::GetRandomFileName())"
 	$data | openssl pkeyutl -encrypt -inkey $privateKey -out $tmpfile
@@ -139,9 +173,11 @@ function Encrypt {
 	return $keyDataBytes | ToBase64
 }
 
-function Make-KeystoreCert {
+function Make-KeystoreCert
+{
 	param($filename)
-	if($filename -eq $null -or $filename -eq ""){
+	if($filename -eq $null -or $filename -eq "")
+	{
 		$filename = "keystore.pem"
 	}
 	$name = "~/.ssh/$filename"
@@ -149,7 +185,8 @@ function Make-KeystoreCert {
 	return $name
 }
 
-function Get-KeystoreData {
+function Get-KeystoreData
+{
 	param(
 		[parameter(mandatory=$true)]
 		[string] $keyName
@@ -157,10 +194,12 @@ function Get-KeystoreData {
 	[System.Reflection.Assembly]::LoadWithPartialName("System.Security") | out-null
 
 	$keyFile = Get-KeyFilePath $keyName
-	if( Test-Path -PathType Leaf $keyFile ) {
+	if( Test-Path -PathType Leaf $keyFile )
+	{
 		$keyData = gc -Encoding Utf8 -Path $keyFile
 		$cert = Get-Cert -hash $keyData[0]
-		if(!$cert) {
+		if(!$cert)
+		{
 			throw ("Cannot find the requested certificate: {0}" -f $keyData[0])
 		}
 		$keyDataString= $keyData[2]
@@ -173,7 +212,8 @@ function Get-KeystoreData {
 	}
 }
 
-function Set-KeystoreData {
+function Set-KeystoreData
+{
 	param(
 		[parameter(mandatory=$true)]
 		[string] $keyName,
@@ -182,21 +222,25 @@ function Set-KeystoreData {
 		$cert
 	)
 
-	if( $cert -eq $null ) {
+	if( $cert -eq $null )
+	{
 		$cert = Get-DefaultCertificate
 	}
 
-	if( !(Test-path $cert )) {
+	if( !(Test-path $cert ))
+	{
 		throw "Couldn't find proper certificate"
 		return
 	}
 
-	if( $data -eq $null -or $data -eq "" ) {
+	if( $data -eq $null -or $data -eq "" )
+	{
 		throw "Must specify data to encrypt"
 		return
 	}
 
-	if( $data.GetType().Name -eq "String" ) {
+	if( $data.GetType().Name -eq "String" )
+	{
 		$stringdata = $data
 		$type = "string"
 	}
@@ -214,55 +258,64 @@ function Set-KeystoreData {
 	Set-Content -Encoding Utf8 -Path $keyfile -Value $keydata
 	$retrievedData = Get-KeystoreData -keyName $keyName
 
-	if( $retrievedData -eq $null ) {
+	if( $retrievedData -eq $null )
+	{
 		throw "Failed to encrypt data with keyname $keyname"
 	}
 
-	if( ($retrievedData|ConvertTo-Json -Depth 99) -ne ($data|ConvertTo-Json -Depth 99) ) {
+	if( ($retrievedData | ConvertTo-Json -Depth 99) -ne ($data | ConvertTo-Json -Depth 99) )
+	{
 		throw "Failed to encrypt data with keyname $keyname"
 	}
 	return $retrievedData
 }
 
-function Get-KeystoreCredential {
+function Get-KeystoreCredential
+{
 	param( $keyName )
 	$data = Get-KeystoreData -keyName $keyName
-	if($data -and $data.u -and $data.p) {
+	if($data -and $data.u -and $data.p)
+	{
 		return new-object System.Management.Automation.PSCredential( $data.u, (ConvertTo-SecureString -AsPlainText -Force -String $data.p) )
 	}
 }
 
-function Set-KeystoreCredential {
+function Set-KeystoreCredential
+{
 	param(
-		[parameter(mandatory=$true,position=0)]
+		[parameter(mandatory=$true, position=0)]
 		[string] $keyName,
-		[parameter(mandatory=$true,position=1,parametersetname="UsernamePassword")]
+		[parameter(mandatory=$true, position=1, parametersetname="UsernamePassword")]
 		[string] $username,
-		[parameter(mandatory=$true,position=2,parametersetname="UsernamePassword")]
+		[parameter(mandatory=$true, position=2, parametersetname="UsernamePassword")]
 		[string] $password,
-		[parameter(mandatory=$true,position=1,parametersetname="PSCredential")]
+		[parameter(mandatory=$true, position=1, parametersetname="PSCredential")]
 		[System.Management.Automation.PSCredential] $credential,
 		$cert
 	)
 
-	if( $credential -ne $null ) {
+	if( $credential -ne $null )
+	{
 		$networkcredential = $credential.getNetworkCredential()
 		$username = $networkcredential.Username
 		$password = $networkcredential.Password
 	}
 
-	if( !($username -and $password) ) {
+	if( !($username -and $password) )
+	{
 		throw "Must specify credential or non-empty username+password"
 		return
 	}
 
-	$data = Set-KeystoreData -keyName $keyName -data @{"u"=$username;"p"=$password} -cert $cert
+	$data = Set-KeystoreData -keyName $keyName -data @{"u"=$username; "p"=$password } -cert $cert
 
-	if( $data -eq $null ) {
+	if( $data -eq $null )
+	{
 		throw "Failed to encrypt credential with keyname $keyname"
 	}
 
-	if($data.u -and $data.p) {
+	if($data.u -and $data.p)
+	{
 		return new-object System.Management.Automation.PSCredential( $data.u, (ConvertTo-SecureString -AsPlainText -Force -String $data.p) )
 	}
 	else
