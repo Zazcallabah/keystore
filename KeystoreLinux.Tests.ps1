@@ -10,7 +10,7 @@ Describe "Filters" {
 		$b[3] | should -be 100
 	}
 	It "bytes GetString" {
-		$s = @(97,98,99,100) | GetString
+		$s = @(97, 98, 99, 100) | GetString
 		$s | should -be "abcd"
 	}
 	It "string FromBase64" {
@@ -22,11 +22,11 @@ Describe "Filters" {
 		$b[3] | should -be 100
 	}
 	It "bytes ToBase64" {
-		$s = @(97,98,99,100) | ToBase64
+		$s = @(97, 98, 99, 100) | ToBase64
 		$s | should -be "YWJjZA=="
 	}
 	It "bytes ToHex" {
-		$s = @(97,98,99,100) | ToHex
+		$s = @(97, 98, 99, 100) | ToHex
 		$s | should -be "61626364"
 		$s.GetType().Name | should -be "String"
 	}
@@ -47,41 +47,51 @@ Describe "Keyfile" {
 		$c | should -be "~/.keystore/81fe8bfe87576c3ecb22426f8e57847382917acf"
 	}
 }
-$script:cert = Make-KeystoreCert "testcert.pem"
+$certpath = "$psscriptroot/testcert.pem"
+if((test-path $certpath))
+{
+	rm $certpath
+}
+$script:cert = Make-KeystoreCert "testcert.pem" "$psscriptroot" "abcde"
 
 Describe "Encrypt and Decrypt" {
 	It "can encrypt then decrypt" {
+		Set-Certkey "$psscriptroot/testcert.pem" "abcde"
 		$message = "abcdef"
-		$encrypted = Encrypt $message "~/.ssh/testcert.pem"
+		$encrypted = Encrypt $message "$psscriptroot/testcert.pem"
 		$encrypted | should -Not -be $message
-		$decrypted = Decrypt $encrypted "~/.ssh/testcert.pem"
+		$decrypted = Decrypt $encrypted "$psscriptroot/testcert.pem"
 		$decrypted | should -be $message
 	}
 }
 
 Describe "Get and Set KeystoreData" {
 	It "can encrypt" {
+		Set-Certkey "$psscriptroot/testcert.pem" "abcde"
 		$message = "aoeu"
-		$result = Set-KeystoreData -keyname a -data $message -cert "~/.ssh/testcert.pem"
+		$result = Set-KeystoreData -keyname a -data $message -cert "$psscriptroot/testcert.pem"
 		$result | should -be "aoeu"
 		Test-Path (Get-KeyFilePath "a") | should -be $true
 	}
 	It "can decrypt" {
+		Set-Certkey "$psscriptroot/testcert.pem" "abcde"
 		$message = "aoeu"
-		Set-KeystoreData -keyname a -data $message -cert "~/.ssh/testcert.pem"
-		$result = Get-KeystoreData -keyname a
+		Set-KeystoreData -keyname a -data $message -cert "$psscriptroot/testcert.pem"
+		$result = Get-KeystoreData -keyname a -cert "$psscriptroot/testcert.pem"
 		$result | should -be "aoeu"
 	}
 }
 
 Describe "Get and Set KeystoreCredential" {
 	It "can encrypt" {
-		$result = Set-KeystoreCredential -keyname "b" -username "aoeu" -password "pass" -cert "~/.ssh/testcert.pem"
+		Set-Certkey "$psscriptroot/testcert.pem" "abcde"
+		$result = Set-KeystoreCredential -keyname "b" -username "aoeu" -password "pass" -cert "$psscriptroot/testcert.pem"
 		Test-Path (Get-KeyFilePath "b") | should -be $true
 	}
 	It "can decrypt" {
-		Set-KeystoreCredential -keyname ab -username "aoeu" -password "pass" -cert "~/.ssh/testcert.pem"
-		$result = Get-KeystoreCredential -keyname ab
+		Set-Certkey "$psscriptroot/testcert.pem" "abcde"
+		Set-KeystoreCredential -keyname ab -username "aoeu" -password "pass" -cert "$psscriptroot/testcert.pem"
+		$result = Get-KeystoreCredential -keyname ab -cert "$psscriptroot/testcert.pem"
 		$result.username | should -be "aoeu"
 		$result.getnetworkcredential().password | should -be "pass"
 	}

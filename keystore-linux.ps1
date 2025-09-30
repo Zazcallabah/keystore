@@ -1,5 +1,22 @@
 # This file is sourced from github.com/Zazcallabah/keystore
 
+$script:_certkeys = @{}
+
+function script:_certkey
+{
+	param($privateKey)
+	if($script:_certkeys -eq $null)
+	{
+		$script:_certkeys = @{}
+	}
+	if(!$script:_certkeys.ContainsKey($privateKey))
+	{
+		$passkey = read-host -AsSecureString "Enter pass phrase for '$privateKey'"
+		$script:_certkeys.Add($privateKey, $passkey)
+	}
+	return  $script:_certkeys[$privateKey] | ConvertFrom-SecureString -asplaintext
+}
+
 filter GetBytes
 {
 	[System.Text.Encoding]::UTF8.GetBytes( $_ )
@@ -65,6 +82,20 @@ filter SHA1
 {
 	$sha1 = (new-object System.Security.Cryptography.SHA1Managed).ComputeHash( ($_ | GetBytes) )
 	return $sha1 | ToHex
+}
+
+function Set-Certkey
+{
+	param($privateKey, $passPhrase)
+	if($script:_certkeys -eq $null)
+	{
+		$script:_certkeys = @{}
+	}
+	if($script:_certkeys.containskey($privateKey))
+	{
+		$script:_certkeys.remove($privateKey)
+	}
+	$script:_certkeys.Add($privateKey, (ConvertTo-SecureString -AsPlainText -String $passPhrase))
 }
 
 function Get-LocalKeyStore
@@ -158,30 +189,70 @@ function Decrypt
 	$keyDataBytes = $keyDataBase64 | FromBase64
 	$ignore = [System.IO.File]::WriteAllBytes( $tmpfile, $keyDataBytes )
 
-	$result = openssl pkeyutl -decrypt -inkey $privateKey -in $tmpfile
-	remove-item $tmpfile
-	return $result
+	try
+	{
+		$passkey = _certkey $privateKey
+		$result = $passkey | openssl pkeyutl -decrypt -passin stdin -inkey $privateKey -in $tmpfile 2>&1
+		$errorresult = $result | ?{ $_ -is [System.Management.Automation.ErrorRecord] } | %{ "$_" }
+		if($errorresult -ne $null)
+		{
+			throw $errorresult
+		}
+	}
+	catch
+	{
+		$script:_certkeys.Remove($privateKey)
+		write-error $_
+		throw $_
+	}
+	finally
+	{
+		remove-item $tmpfile
+	}
+	return $result | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] }
+
 }
 
 function Encrypt
 {
 	param( [string]$data, $privateKey )
-	$tmpfile = "$PSScriptRoot/$([System.IO.Path]::GetRandomFileName())"
-	$data | openssl pkeyutl -encrypt -inkey $privateKey -out $tmpfile
-	$keyDataBytes = [System.IO.File]::ReadAllBytes($tmpfile)
-	remove-item $tmpfile
+	$tmpfilein = "$PSScriptRoot/$([System.IO.Path]::GetRandomFileName())"
+	$tmpfileout = "$PSScriptRoot/$([System.IO.Path]::GetRandomFileName())"
+	$passkey = _certkey $privateKey
+	$data | set-content -encoding utf8 $tmpfilein
+	$passkey | openssl pkeyutl -encrypt -passin stdin -inkey $privateKey -out $tmpfileout -in $tmpfilein
+	if(!(test-path $tmpfileout))
+	{
+		remove-item $tmpfileout
+		remove-item $tmpfilein
+		throw "Did not get data from openssl"
+	}
+	$keyDataBytes = [System.IO.File]::ReadAllBytes($tmpfileout)
+	remove-item $tmpfileout
+	remove-item $tmpfilein
 	return $keyDataBytes | ToBase64
 }
 
 function Make-KeystoreCert
 {
-	param($filename)
+	param($filename, $folder, $passphrase)
 	if($filename -eq $null -or $filename -eq "")
 	{
 		$filename = "keystore.pem"
 	}
-	$name = "~/.ssh/$filename"
-	ssh-keygen -m PKCS8 -t rsa -b 4096 -f $name | out-host
+	if($folder -eq $null)
+	{
+		$folder = "~/.ssh"
+	}
+	$name = "$($folder.trimend('/'))/$filename"
+	if($passphrase -eq $null)
+	{
+		ssh-keygen -m PKCS8 -t rsa -b 4096 -f $name | out-host
+	}
+	else
+	{
+		ssh-keygen -m PKCS8 -t rsa -b 4096 -f $name -N $passphrase | out-host
+	}
 	return $name
 }
 
@@ -189,15 +260,18 @@ function Get-KeystoreData
 {
 	param(
 		[parameter(mandatory=$true)]
-		[string] $keyName
+		[string] $keyName,
+		$cert
 	)
 	[System.Reflection.Assembly]::LoadWithPartialName("System.Security") | out-null
 
 	$keyFile = Get-KeyFilePath $keyName
 	if( Test-Path -PathType Leaf $keyFile )
 	{
-		$keyData = gc -Encoding Utf8 -Path $keyFile
-		$cert = Get-Cert -hash $keyData[0]
+		$keyData = get-content -Encoding Utf8 -Path $keyFile
+		if($cert -eq $null){
+			$cert = Get-Cert -hash $keyData[0]
+		}
 		if(!$cert)
 		{
 			throw ("Cannot find the requested certificate: {0}" -f $keyData[0])
@@ -221,6 +295,8 @@ function Set-KeystoreData
 		$data,
 		$cert
 	)
+
+	$inputcert = $cert
 
 	if( $cert -eq $null )
 	{
@@ -256,7 +332,7 @@ function Set-KeystoreData
 	$encrypted = Encrypt $stringData $cert
 	$keydata = @( $thumb, $type, $encrypted )
 	Set-Content -Encoding Utf8 -Path $keyfile -Value $keydata
-	$retrievedData = Get-KeystoreData -keyName $keyName
+	$retrievedData = Get-KeystoreData -keyName $keyName -cert $inputcert
 
 	if( $retrievedData -eq $null )
 	{
@@ -272,8 +348,8 @@ function Set-KeystoreData
 
 function Get-KeystoreCredential
 {
-	param( $keyName )
-	$data = Get-KeystoreData -keyName $keyName
+	param( $keyName, $cert )
+	$data = Get-KeystoreData -keyName $keyName -cert $cert
 	if($data -and $data.u -and $data.p)
 	{
 		return new-object System.Management.Automation.PSCredential( $data.u, (ConvertTo-SecureString -AsPlainText -Force -String $data.p) )
